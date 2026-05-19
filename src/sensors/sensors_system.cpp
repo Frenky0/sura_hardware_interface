@@ -165,11 +165,10 @@ hardware_interface::CallbackReturn SensorsSystem::on_init(
   }
 
   if (!has_dvl_) {
-    RCLCPP_ERROR(
+    RCLCPP_INFO(
       kLogger,
-      "Sensor '%s' not found in ros2_control description",
+      "Sensor '%s' not found in ros2_control description. DVL support disabled.",
       dvl_sensor_name_.c_str());
-    return hardware_interface::CallbackReturn::ERROR;
   }
 
   RCLCPP_INFO(
@@ -197,9 +196,11 @@ hardware_interface::CallbackReturn SensorsSystem::on_configure(
       return hardware_interface::CallbackReturn::ERROR;
     }
 
-    if (!dvl_.initialize(info_)) {
-      RCLCPP_ERROR(kLogger, "Failed to initialize DVL interface");
-      return hardware_interface::CallbackReturn::ERROR;
+    if (has_dvl_) {
+      if (!dvl_.initialize(info_)) {
+        RCLCPP_ERROR(kLogger, "Failed to initialize DVL interface");
+        return hardware_interface::CallbackReturn::ERROR;
+      }
     }
 
     if (!battery_.initialize(info_)) {
@@ -225,9 +226,11 @@ hardware_interface::CallbackReturn SensorsSystem::on_activate(
       return hardware_interface::CallbackReturn::ERROR;
     }
 
-    if (!dvl_.activate()) {
-      RCLCPP_ERROR(kLogger, "Failed to activate DVL");
-      return hardware_interface::CallbackReturn::ERROR;
+    if (has_dvl_) {
+      if (!dvl_.activate()) {
+        RCLCPP_ERROR(kLogger, "Failed to activate DVL");
+        return hardware_interface::CallbackReturn::ERROR;
+      }
     }
 
     if (!battery_.activate()) {
@@ -237,7 +240,9 @@ hardware_interface::CallbackReturn SensorsSystem::on_activate(
 
     poll_pressure_once();
     poll_battery_once();
-    poll_dvl_once();
+    if (has_dvl_) {
+      poll_dvl_once();
+    }
     start_real_sensor_threads();
   }
 
@@ -262,9 +267,11 @@ hardware_interface::CallbackReturn SensorsSystem::on_deactivate(
       return hardware_interface::CallbackReturn::ERROR;
     }
 
-    if (!dvl_.deactivate()) {
-      RCLCPP_ERROR(kLogger, "Failed to deactivate DVL");
-      return hardware_interface::CallbackReturn::ERROR;
+    if (has_dvl_) {
+      if (!dvl_.deactivate()) {
+        RCLCPP_ERROR(kLogger, "Failed to deactivate DVL");
+        return hardware_interface::CallbackReturn::ERROR;
+      }
     }
 
     if (!battery_.deactivate()) {
@@ -360,9 +367,11 @@ hardware_interface::CallbackReturn SensorsSystem::on_cleanup(
       return hardware_interface::CallbackReturn::ERROR;
     }
 
-    if (!dvl_.cleanup()) {
-      RCLCPP_ERROR(kLogger, "Failed to cleanup DVL");
-      return hardware_interface::CallbackReturn::ERROR;
+    if (has_dvl_) {
+      if (!dvl_.cleanup()) {
+        RCLCPP_ERROR(kLogger, "Failed to cleanup DVL");
+        return hardware_interface::CallbackReturn::ERROR;
+      }
     }
 
     if (!battery_.cleanup()) {
@@ -390,8 +399,10 @@ hardware_interface::CallbackReturn SensorsSystem::on_shutdown(
 
     (void)imu_.deactivate();
     (void)imu_.cleanup();
-    (void)dvl_.deactivate();
-    (void)dvl_.cleanup();
+    if (has_dvl_) {
+      (void)dvl_.deactivate();
+      (void)dvl_.cleanup();
+    }
     (void)battery_.deactivate();
     (void)battery_.cleanup();
   }
@@ -415,8 +426,10 @@ hardware_interface::CallbackReturn SensorsSystem::on_error(
 
     (void)imu_.deactivate();
     (void)imu_.cleanup();
-    (void)dvl_.deactivate();
-    (void)dvl_.cleanup();
+    if (has_dvl_) {
+      (void)dvl_.deactivate();
+      (void)dvl_.cleanup();
+    }
     (void)battery_.deactivate();
     (void)battery_.cleanup();
   }
@@ -494,7 +507,9 @@ void SensorsSystem::start_real_sensor_threads()
 
   pressure_thread_ = std::thread(&SensorsSystem::pressure_poll_loop, this);
   battery_thread_ = std::thread(&SensorsSystem::battery_poll_loop, this);
-  dvl_thread_ = std::thread(&SensorsSystem::dvl_poll_loop, this);
+  if (has_dvl_) {
+    dvl_thread_ = std::thread(&SensorsSystem::dvl_poll_loop, this);
+  }
 }
 
 void SensorsSystem::stop_real_sensor_threads()
@@ -672,40 +687,40 @@ void SensorsSystem::configure_sim_subscribers()
       sim_pressure_callback(msg);
     });
 
+  if (has_dvl_) {
 #if SURA_HAS_STONEFISH
-  sim_dvl_sub_ = sim_node_->create_subscription<stonefish_ros2::msg::DVL>(
-    sim_dvl_topic_, rclcpp::SensorDataQoS(),
-    [this](const stonefish_ros2::msg::DVL::SharedPtr msg) {
-      sim_dvl_callback(msg);
-    });
+    sim_dvl_sub_ = sim_node_->create_subscription<stonefish_ros2::msg::DVL>(
+      sim_dvl_topic_, rclcpp::SensorDataQoS(),
+      [this](const stonefish_ros2::msg::DVL::SharedPtr msg) {
+        sim_dvl_callback(msg);
+      });
 #else
-  RCLCPP_WARN(
-    kLogger,
-    "Stonefish support is disabled in this build. Skipping simulated DVL velocity subscriber '%s'.",
-    sim_dvl_topic_.c_str());
+    RCLCPP_WARN(
+      kLogger,
+      "Stonefish support is disabled in this build. Skipping simulated DVL velocity subscriber '%s'.",
+      sim_dvl_topic_.c_str());
 #endif
 
-  sim_dvl_altitude_sub_ = sim_node_->create_subscription<sensor_msgs::msg::Range>(
-    sim_dvl_altitude_topic_, rclcpp::SensorDataQoS(),
-    [this](const sensor_msgs::msg::Range::SharedPtr msg) {
-      sim_dvl_altitude_callback(msg);
-    });
+    sim_dvl_altitude_sub_ = sim_node_->create_subscription<sensor_msgs::msg::Range>(
+      sim_dvl_altitude_topic_, rclcpp::SensorDataQoS(),
+      [this](const sensor_msgs::msg::Range::SharedPtr msg) {
+        sim_dvl_altitude_callback(msg);
+      });
 
-  sim_gps_sub_ = sim_node_->create_subscription<sensor_msgs::msg::NavSatFix>(
-    sim_gps_topic_, rclcpp::SensorDataQoS(),
-    [this](const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
-      sim_gps_callback(msg);
-    });
+    sim_gps_sub_ = sim_node_->create_subscription<sensor_msgs::msg::NavSatFix>(
+      sim_gps_topic_, rclcpp::SensorDataQoS(),
+      [this](const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
+        sim_gps_callback(msg);
+      });
+  }
 
   RCLCPP_INFO(
     kLogger,
-    "Configured simulation sensor subscribers: imu='%s', mag='%s', pressure='%s', dvl='%s', altitude='%s', gps='%s'",
+    "Configured simulation sensor subscribers: imu='%s', mag='%s', pressure='%s', dvl_enabled=%s",
     sim_imu_topic_.c_str(),
     sim_magnetometer_topic_.c_str(),
     sim_pressure_topic_.c_str(),
-    sim_dvl_topic_.c_str(),
-    sim_dvl_altitude_topic_.c_str(),
-    sim_gps_topic_.c_str());
+    has_dvl_ ? "true" : "false");
 }
 
 void SensorsSystem::reset_sim_subscribers()

@@ -70,6 +70,7 @@ endif()
 add_library(${PROJECT_NAME} SHARED
   src/thrusters/thrusters_system.cpp
   src/thrusters/thruster_mapper.cpp
+  src/actuators/servo_actuator_system.cpp
   src/sensors/sensors_system.cpp
   src/sensors/imu_interface.cpp
   src/sensors/magnetometer_interface.cpp
