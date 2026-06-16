@@ -115,4 +115,13 @@
       Sensor interface for GPS readings
     </description>
   </class>
+
+  <class
+    name="sura_hardware_interface/ServoActuatorSystem"
+    type="sura_hardware_interface::ServoActuatorSystem"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Hardware interface for RC Servos and Newton Gripper
+    </description>
+  </class>
 </library>

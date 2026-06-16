@@ -65,6 +65,7 @@ add_library(${PROJECT_NAME} SHARED
   src/thrusters/thrusters_system.cpp
   src/thrusters/thruster_mapper.cpp
   src/actuators/actuators_system.cpp
+  src/actuators/servo_actuator_system.cpp
   src/actuators/light_blueboat_interface.cpp
   src/actuators/lights_bluerov_interface.cpp
   src/sensors/sensors_system.cpp
