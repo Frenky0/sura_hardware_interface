@@ -127,6 +127,11 @@ hardware_interface::CallbackReturn ServoActuatorSystem::on_init(
   inverted_flags_.assign(info_.joints.size(), false);
   center_offsets_.assign(info_.joints.size(), 0.0);
 
+  //
+  pulse_min_us_.assign(info_.joints.size(), 1000.0);
+  pulse_max_us_.assign(info_.joints.size(), 2000.0);
+  //
+
   for (std::size_t index = 0; index < info_.joints.size(); ++index) {
     const auto & joint = info_.joints[index];
     
@@ -140,6 +145,15 @@ hardware_interface::CallbackReturn ServoActuatorSystem::on_init(
     const auto offset_it = joint.parameters.find("center_offset_rad");
     if (offset_it != joint.parameters.end()) {
       center_offsets_[index] = std::stod(offset_it->second);
+    }
+    const auto pulse_min_it = joint.parameters.find("pulse_min_us");
+    if (pulse_min_it != joint.parameters.end()) {
+      pulse_min_us_[index] = std::stod(pulse_min_it->second);
+    }
+
+    const auto pulse_max_it = joint.parameters.find("pulse_max_us");
+    if (pulse_max_it != joint.parameters.end()) {
+      pulse_max_us_[index] = std::stod(pulse_max_it->second);
     }
   }
 
@@ -314,10 +328,12 @@ hardware_interface::return_type ServoActuatorSystem::write(
     // -1.0 -> 1000 us (Minimo / Chiuso / 0 Giri)
     //  0.0 -> 1500 us (Centro / Fermo / 1.5 Giri)
     // +1.0 -> 2000 us (Massimo / Aperto / 3 Giri)
-    double pulse_us = 1500.0 + (command_norm * 500.0);
+    const double pulse_center_us = 0.5 * (pulse_min_us_[index] + pulse_max_us_[index]);
+    const double pulse_half_range_us = 0.5 * (pulse_max_us_[index] - pulse_min_us_[index]);
 
-    // Clamp finale di sicurezza per l'hardware RC
-    pulse_us = std::clamp(pulse_us, 1000.0, 2000.0);
+    double pulse_us = pulse_center_us + (command_norm * pulse_half_range_us);
+
+    pulse_us = std::clamp(pulse_us, pulse_min_us_[index], pulse_max_us_[index]);
 
     pwm_counts[index] = pulse_us_to_counts(pulse_us, pwm_frequency_hz_);
 #endif

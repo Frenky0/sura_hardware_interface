@@ -76,7 +76,8 @@ private:
   
   // Offset in radians/normalized value to center the servo correctly in software
   std::vector<double> center_offsets_;
-
+  std::vector<double> pulse_min_us_;
+  std::vector<double> pulse_max_us_;
   // Internal ROS 2 node and publisher for simulation outputs
   rclcpp::Node::SharedPtr internal_node_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr servo_sim_pub_;
